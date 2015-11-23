@@ -1,0 +1,103 @@
+# Assessment of exercise activity using the data of activity monitors
+Aleksandra Lyulko
+
+November 22, 2013
+
+## Summary
+
+The goal of this study is to predict whether a subject makes one of the common
+mistakes while lifting a dumbell. The mistakes and the correct exectuion are
+summarized in a variable "classe" of the training dataset. I used Prediction
+with Classification Trees ('rpart' package) and the Linear Discriminant
+Analysis (LDA) to build classification models on the training data and 
+evaluated their accuracies.
+I also tried the Linear Model - it turned out to be not suitable for factor
+outcomes; Random Forest, Naive Bayes and Gradient Boosting Machine - for these
+methods the computation time was too long.
+Based on the accuracies (50% for Trees and 62% for LDA) I chose LDA to apply
+to the 20 test sets.
+
+## Data Processing
+
+### Download the data
+
+```{r loading, cache=TRUE}
+url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url1="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+setInternet2(use=TRUE)
+download.file(url, destfile="pml-training.csv")
+download.file(url1, destfile="pml-testing.csv")
+
+training=read.csv("pml-training.csv")
+testing=read.csv("pml-testing.csv")
+```
+### Select predictors
+Select available variables for training, based on the available values in the
+test set and exclude the variables related to the observation number, subject
+name and time:
+
+```{r cleaning, cache=TRUE}
+nzv = nearZeroVar(testing, saveMetrics=TRUE)
+nzv1 = nearZeroVar(training, saveMetrics=TRUE)
+indices = which(nzv$zeroVar=="FALSE")
+training1 = training[,indices]
+testing1 = testing[,indices]
+testing2 = subset(testing1, select=-c(X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, problem_id))
+training2 = subset(training1, select=-c(X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp))
+```
+
+### Building the models
+Training using the Classification with Trees model:
+```{r Treetraining, cache=TRUE}
+modFitTree = train(classe~., method="rpart", data=training2)
+predTree = predict(modFitTree, training2)
+```
+
+Training with LDA:
+```{r Ldatraining, cache=TRUE}
+modFitLda=train(classe~., data=training2, method="lda")
+predLda=predict(modFitLda, training2)
+```
+
+### Cross-validation
+Validate the models with the number of correctly predicted training cases:
+```{r Nvalidation}
+TreeValid=(predTree == training2$classe)
+table(TreeValid)
+LdaValid = (predLda == training2$classe)
+table(LdaValid)
+```
+This simple test shows that performance of the LDA model is significantly
+better than Tree classification.
+
+Validate the models using the Confusion Matrix:
+```{r CMvalidation}
+confusionMatrix(predTree, training2$classe)
+confusionMatrix(predLda, training2$classe)
+```
+The accuracy of the Classification Tree model is 0.4956 with sensitivities
+for different classes ranging from 0.0 to 0.9104 (0.9104 for class A). The
+accuracy of the LDA model is 0.7161 with sensitivities from 0.6310 to 0.8267.
+Thus, I decided to use the Linear Discriminant Analysis as my model to predict
+the outcomes of the test sets.
+
+I estimate the out-of-sample error to be below 72%, based on the Accuracy of
+LDA model.
+ 
+
+## Results
+Apply the LDA model to the testing set to predict the manner of
+exercise of the participants in the test cases.
+```{r predict}
+predLdaTest=predict(modFitLda, newdata=testing2)
+predLdaTest
+```
+
+## Reference
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H.
+Qualitative Activity Recognition of Weight Lifting Exercises.
+Proceedings of 4th International Conference in Cooperation with SIGCHI
+(Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+
+
